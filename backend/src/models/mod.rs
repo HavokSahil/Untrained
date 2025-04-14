@@ -1,0 +1,12 @@
+pub mod user;
+pub mod passenger;
+pub mod train;
+pub mod station;
+pub mod booking;
+pub mod seat;
+pub mod route;
+pub mod transaction;
+pub mod journey;
+pub mod cancellation;
+pub mod coach;
+pub mod schedule;
