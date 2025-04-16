@@ -144,7 +144,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                             children: [
                               _infoRow("Route ID", routeInfo!.routeId.toString()),
                               _infoRow("Route Name", routeInfo!.routeName),
-                              _infoRow("Source Station", routeInfo!.sourceStationId.toString()),
+                              _infoRow("Source Station", routeInfo!.sourceStationName.toString()),
                               _infoRow("Stations", routeInfo!.stations.length.toString()),
                               _infoRow("Total Distance", "${routeInfo!.totalDistance} km"),
                             ],
@@ -161,7 +161,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                               color: const Color(0xFF212121),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               child: ListTile(
-                                title: Text("Station ID: ${station.stationId}", style: const TextStyle(color: Colors.white)),
+                                title: Text("#${station.stationId} ${station.stationName}", style: const TextStyle(color: Colors.white)),
                                 subtitle: Text(
                                   "Distance: ${station.distance} km",
                                   style: const TextStyle(color: Colors.grey),

@@ -1,7 +1,8 @@
 use actix_web::{web, Error, HttpResponse, Responder, Result};
+use chrono::NaiveDate;
 use sqlx::MySqlPool;
 
-use crate::models::journey::{CreateJourney, JourneyDetailedResponse, JourneyResponse, UpdateJourney};
+use crate::models::journey::{CreateJourney, JourneyBetweenStations, JourneyDetailedResponse, JourneyResponse, UpdateJourney};
 
 use super::utils::QueryParams;
 
@@ -280,6 +281,102 @@ pub async fn get_journey_by_id(
                 "error": "Failed to fetch journey",
                 "details": e.to_string()
             })))
+        }
+    }
+}
+
+
+pub async fn get_journey_by_stations(
+    pool: web::Data<MySqlPool>,
+    query: web::Query<QueryParams>,
+) -> Result<impl Responder, Error> {
+    let start_station_id = query.source_station_id.unwrap_or(0);
+    let end_station_id = query.destination_station_id.unwrap_or(0);
+    let date_of_journey = query.journey_date.unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
+
+    // Early return if invalid station IDs or date
+    if start_station_id == 0 || end_station_id == 0 {
+        return Ok(HttpResponse::BadRequest().body("Missing or invalid station IDs"));
+    }
+
+    let result = sqlx::query_as!(
+        JourneyBetweenStations,
+        r#"
+        SELECT
+            j.journey_id,
+            t.train_id,
+            t.train_name,
+            s1.station_id AS start_station_id,
+            sched_start.sched_id AS start_schedule_id,
+            s1.station_name AS start_station,
+            s2.station_id AS end_station_id,
+            sched_end.sched_id AS end_schedule_id,
+            s2.station_name AS end_station,
+            sched_start.sched_toa AS start_time,
+            sched_end.sched_toa AS end_time,
+            sched_start.stop_number AS start_stop_number,
+            sched_end.stop_number AS end_stop_number,
+            TIME_TO_SEC(TIMEDIFF(sched_end.sched_toa, sched_start.sched_toa)) AS travel_time
+        FROM
+            journey j
+        JOIN
+            train t ON j.train_id = t.train_id
+        JOIN
+            (
+                SELECT
+                    sched_id,
+                    journey_id,
+                    station_id,
+                    sched_toa,
+                    sched_tod,
+                    stop_number
+                FROM
+                    schedule
+                WHERE
+                    station_id = ?
+                    AND DATE(sched_toa) = ?
+            ) sched_start ON j.journey_id = sched_start.journey_id
+        JOIN
+            (
+                SELECT
+                    sched_id,
+                    journey_id,
+                    station_id,
+                    sched_toa,
+                    sched_tod,
+                    stop_number
+                FROM
+                    schedule
+                WHERE
+                    station_id = ?
+            ) sched_end ON j.journey_id = sched_end.journey_id
+        JOIN
+            station s1 ON sched_start.station_id = s1.station_id
+        JOIN
+            station s2 ON sched_end.station_id = s2.station_id
+        WHERE
+            sched_start.stop_number < sched_end.stop_number
+        "#,
+        &start_station_id,
+        date_of_journey,
+        &end_station_id,
+    )
+    .fetch_all(pool.get_ref())
+    .await;
+
+    match result {
+        Ok(journeys) => Ok(HttpResponse::Ok().json({
+            serde_json::json!({
+                "page": 1,
+                "data": journeys,
+                "offset": 0,
+                "total": journeys.len(),
+                "limit": journeys.len(),
+            })
+        })),
+        Err(e) => {
+            eprintln!("Database query error: {:?}", e);
+            Ok(HttpResponse::InternalServerError().body("Error fetching journeys"))
         }
     }
 }

@@ -1,8 +1,8 @@
 use actix_web::{web, Error, HttpResponse, Responder};
 use sqlx::MySqlPool;
 use serde_json::json;
-use crate::models::route::{AddIntermediateStation, CreateRoute, RouteDetailResponse, RouteResponse, RouteStation};
-use super::utils::QueryParams;
+use crate::models::{route::{AddIntermediateStation, CreateRoute, RelativeStation, RouteDetailResponse, RouteResponse, RouteStation}, schedule::RoutesBetweenStations};
+use crate::handlers::utils::QueryParams;
 
 pub async fn get_routes(
     pool: web::Data<MySqlPool>,
@@ -57,6 +57,7 @@ pub async fn get_routes(
             r.route_id,
             r.route_name,
             r.source_station_id,
+            (SELECT station_name FROM station s WHERE s.station_id = r.source_station_id) AS source_station_name,
             COUNT(dm.station_id) AS num_stations,
             COALESCE(MAX(dm.distance), 0) AS total_distance
         FROM route r
@@ -192,7 +193,9 @@ pub async fn get_route_stations(
 
     // 1. Get route metadata
     let route = sqlx::query!(
-        "SELECT route_id, route_name, source_station_id FROM route WHERE route_id = ?",
+        r#"SELECT r.route_id, r.route_name, r.source_station_id,
+        (SELECT station_name FROM station s WHERE s.station_id = r.source_station_id) AS source_station_name
+        FROM route r WHERE route_id = ?"#,
         route_id
     )
     .fetch_one(pool.get_ref())
@@ -205,8 +208,10 @@ pub async fn get_route_stations(
     // 2. Get station details for this route
     let stations: Vec<RouteStation> = sqlx::query_as!(
         RouteStation,
-        "SELECT route_id, station_id, distance FROM distance_map WHERE route_id = ?
-        ORDER BY distance",
+        r#"SELECT route_id, station_id, (SELECT station_name FROM station s WHERE s.station_id = dm.station_id) AS source_station_name,
+        distance FROM distance_map dm
+        WHERE route_id = ?
+        ORDER BY distance"#,
         route_id
     )
     .fetch_all(pool.get_ref())
@@ -226,10 +231,93 @@ pub async fn get_route_stations(
         route_id: route.route_id,
         route_name: route.route_name,
         source_station_id: route.source_station_id,
+        source_station_name: route.source_station_name,
         total_stations: stations.len(),
         total_distance,
         stations,
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+
+pub async fn get_routes_between_stations(
+    pool: web::Data<MySqlPool>,
+    query: web::Query<QueryParams>,
+) -> Result<impl Responder, Error> {
+    let Some(source_station_id) = query.source_station_id else {
+        return Ok(HttpResponse::BadRequest().body("Missing source_station_id"));
+    };
+
+    let Some(destination_station_id) = query.destination_station_id else {
+        return Ok(HttpResponse::BadRequest().body("Missing destination_station_id"));
+    };
+
+    let routes: Vec<RoutesBetweenStations> = sqlx::query_as!(
+        RoutesBetweenStations,
+        r#"SELECT 
+            r.route_id,
+            r.route_name,
+            s1.station_id AS source_station_id,
+            s2.station_id AS destination_station_id,
+            ABS(s2.distance - s1.distance) AS distance
+        FROM 
+            route r
+        JOIN 
+            distance_map s1 ON r.route_id = s1.route_id
+        JOIN 
+            distance_map s2 ON r.route_id = s2.route_id
+        WHERE 
+            s1.station_id = ? AND 
+            s2.station_id = ?"#,
+        source_station_id,
+        destination_station_id
+    )
+    .fetch_all(pool.get_ref())
+    .await
+    .map_err(|err| {
+        eprintln!("Failed to fetch routes: {}", err);
+        actix_web::error::ErrorInternalServerError("Failed to fetch routes")
+    })?;
+
+    // Always return valid JSON (even if empty)
+    Ok(HttpResponse::Ok().json(routes))
+}
+
+
+pub async fn get_relative_stations(
+    pool: web::Data<MySqlPool>,
+    query: web::Query<QueryParams>,
+) -> Result<impl Responder, Error> {
+    let route_id = query.route_id;
+    let reference_station_id = query.station_id;
+    
+    let stations: Vec<RelativeStation> = sqlx::query_as!(
+        RelativeStation,
+        r#"
+        SELECT
+            dm2.station_id AS station_id,
+            (SELECT station_name FROM station s WHERE s.station_id = dm2.station_id) AS station_name,
+            (dm2.distance - dm1.distance) AS distance_from_given_station
+        FROM 
+            distance_map dm1
+        JOIN 
+            distance_map dm2 ON dm1.route_id = dm2.route_id
+        WHERE 
+            dm1.route_id = ? AND dm1.station_id = ?
+            AND dm2.station_id != dm1.station_id
+        ORDER BY 
+            distance_from_given_station
+        "#,
+        route_id,
+        reference_station_id
+    )
+    .fetch_all(pool.get_ref())
+    .await
+    .map_err(|err| {
+        eprintln!("Database query error: {}", err);
+        actix_web::error::ErrorInternalServerError("Failed to fetch station distances")
+    })?;
+
+    Ok(HttpResponse::Ok().json(stations))
 }

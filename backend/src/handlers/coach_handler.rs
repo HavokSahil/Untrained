@@ -102,3 +102,37 @@ pub async fn create_coach(
         }
     }
 }
+
+// Fetch the fare for a specific coach
+pub async fn get_coach_price(
+    pool: web::Data<MySqlPool>,
+    coach_id: web::Path<i64>,
+) -> Result<impl Responder, Error> {
+
+    let coach_id = coach_id.into_inner();
+
+    // Fetch the fare for the specified coach_id
+    let fare = sqlx::query_scalar!(
+        r#"
+        SELECT fare 
+        FROM coach
+        WHERE coach_id = ?
+        "#,
+        coach_id
+    )
+    .fetch_one(pool.get_ref())
+    .await;
+
+    match fare {
+        Ok(fare) => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "fare": fare,
+        }))),
+        Err(e) => {
+            eprintln!("Error fetching fare: {:?}", e);
+            Ok(HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to fetch fare",
+                "details": e.to_string()
+            })))
+        }
+    }
+}

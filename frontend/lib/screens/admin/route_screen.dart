@@ -254,7 +254,7 @@ class _RouteScreenState extends State<RouteScreen> {
                             SizedBox(
                               width: 200,
                               child: Text(
-                                route.sourceStationId.toString(),
+                                route.sourceStationName.toString(),
                                 style: const TextStyle(color: Colors.white),
                               ),
                             ),

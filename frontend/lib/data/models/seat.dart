@@ -88,3 +88,21 @@ class CreateSeat {
     };
   }
 }
+
+class SeatCount {
+  final String reservationCategory;
+  final int seatCount;
+
+  SeatCount({
+    required this.reservationCategory,
+    required this.seatCount,
+  });
+
+  factory SeatCount.fromJson(Map<String, dynamic> json) {
+    return SeatCount(
+      reservationCategory: json['reservation_category'] as String,
+      seatCount: json['seat_count'] as int,
+    );
+  }
+}
+

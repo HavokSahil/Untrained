@@ -4,7 +4,7 @@ use actix_web::{
 };
 use sqlx::MySqlPool;
 
-use crate::models::seat::{CreateSeat, Seat, SeatCategory, SeatType};
+use crate::models::seat::{CreateSeat, Seat, SeatCategory, SeatCount, SeatType};
 
 use super::utils::QueryParams;
 
@@ -84,6 +84,86 @@ pub async fn get_seats_by_coach(
         },
         (Err(e), _) | (_, Err(e)) => {
             eprintln!("Error fetching seats: {:?}", e);
+            Ok(HttpResponse::InternalServerError().finish())
+        }
+    }
+}
+
+pub async fn get_cnf_seat_count_by_coach_category(
+    pool: web::Data<MySqlPool>,
+    train_id: Path<i64>,
+) -> Result<impl Responder, Error> {
+    let train_id = train_id.into_inner();
+
+    let results = sqlx::query_as!(
+        SeatCount,
+        r#"
+        SELECT
+            ct.coach_type AS reservation_category,
+            COUNT(s.seat_id) AS seat_count
+        FROM (
+            SELECT 'SL' AS coach_type
+            UNION ALL SELECT 'AC3'
+            UNION ALL SELECT 'AC2'
+            UNION ALL SELECT 'AC1'
+            UNION ALL SELECT 'CC'
+            UNION ALL SELECT 'FC'
+            UNION ALL SELECT '2S'
+        ) ct
+        LEFT JOIN coach c ON c.coach_type = ct.coach_type AND c.train_id = ?
+        LEFT JOIN seat s ON s.coach_id = c.coach_id AND s.seat_category = 'CNF'
+        GROUP BY ct.coach_type
+        ORDER BY ct.coach_type
+        "#,
+        train_id
+    )
+    .fetch_all(pool.get_ref())
+    .await;
+
+    match results {
+        Ok(counts) => Ok(HttpResponse::Ok().json(counts)),
+        Err(e) => {
+            eprintln!("Error fetching CNF seat count by coach category: {:?}", e);
+            Ok(HttpResponse::InternalServerError().finish())
+        }
+    }
+}
+
+pub async fn get_rac_seat_count_by_coach_category(
+    pool: web::Data<MySqlPool>,
+    train_id: Path<i64>,
+) -> Result<impl Responder, Error> {
+    let train_id = train_id.into_inner();
+
+    let results = sqlx::query_as!(
+        SeatCount,
+        r#"
+        SELECT
+            ct.coach_type AS reservation_category,
+            COUNT(s.seat_id) AS seat_count
+        FROM (
+            SELECT 'SL' AS coach_type
+            UNION ALL SELECT 'AC3'
+            UNION ALL SELECT 'AC2'
+            UNION ALL SELECT 'AC1'
+            UNION ALL SELECT 'CC'
+            UNION ALL SELECT 'FC'
+            UNION ALL SELECT '2S'
+        ) ct
+        LEFT JOIN coach c ON c.coach_type = ct.coach_type AND c.train_id = ?
+        LEFT JOIN seat s ON s.coach_id = c.coach_id AND s.seat_category = 'RAC'
+        GROUP BY ct.coach_type
+        ORDER BY ct.coach_type
+        "#,
+        train_id
+    )
+    .fetch_all(pool.get_ref())
+    .await;
+
+    match results {
+        Ok(counts) => Ok(HttpResponse::Ok().json(counts)),
+        Err(e) => {
+            eprintln!("Error fetching RAC seat count by coach category: {:?}", e);
             Ok(HttpResponse::InternalServerError().finish())
         }
     }

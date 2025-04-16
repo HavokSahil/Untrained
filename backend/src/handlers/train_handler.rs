@@ -6,6 +6,37 @@ use crate::models::train::{Train, TrainDetailedResponse, TrainResponse, TrainTyp
 
 use super::utils::QueryParams;
 
+pub async fn get_train_by_id(
+    pool: web::Data<MySqlPool>,
+    train_no: web::Path<i64>
+) -> Result<impl Responder, Error> {
+
+    let train_no = train_no.into_inner();
+
+    let result = sqlx::query_as!(
+        TrainResponse,
+        "SELECT train_id as train_no, train_name, train_type
+        FROM train
+        WHERE train_id = ?",
+        train_no
+    )
+    .fetch_one(pool.get_ref())
+    .await;
+
+    match result {
+        Ok(train) => Ok(HttpResponse::Ok().json(train)),
+        Err(e) => {
+            eprintln!("Error fetching train: {:?}", e);
+            Ok(HttpResponse::InternalServerError().json({
+                serde_json::json!({
+                    "error": "Failed to fetch train",
+                    "details": e.to_string(),
+                })
+            }))
+        }
+    }
+}
+
 // POST /create_train
 pub async fn create_train(
     pool: web::Data<MySqlPool>,
@@ -149,6 +180,7 @@ pub async fn get_trains_detailed(
     pool: web::Data<MySqlPool>,
     query: web::Query<QueryParams>,
 ) -> Result<impl Responder, Error> {
+    
     let page = query.page.unwrap_or(1);
     let limit = query.limit.unwrap_or(10);
     let offset = (page - 1) * limit;

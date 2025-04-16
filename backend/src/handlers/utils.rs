@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+
 #[derive(serde::Deserialize, Debug)]
 pub struct QueryParams {
     pub search: Option<String>,
@@ -23,6 +25,11 @@ pub struct QueryParams {
     pub journey_id: Option<i64>,
     pub start_station_name: Option<String>,
     pub end_station_name: Option<String>,
+
+    pub source_station_id: Option<i64>,
+    pub destination_station_id: Option<i64>,
+
+    pub journey_date: Option<NaiveDate>,
 
     pub page: Option<u32>,
     pub limit: Option<u32>

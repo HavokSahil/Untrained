@@ -37,6 +37,24 @@ class HomeScreen extends StatefulWidget {
     "Search Train": (context, user) => SearchTrainScreen(user: user)
   };
 
+  static final Map<String, IconData> adminIcons = {
+    "Trains": Icons.train,
+    "Journeys": Icons.navigation,
+    "Schedule": Icons.schedule,
+    "Stats": Icons.bar_chart,
+    "Routes": Icons.map,
+    "Stations": Icons.location_on
+  };
+
+  static final Map<String, IconData> userIcons = {
+    "Booking History": Icons.history,
+    "Book Ticket": Icons.book,
+    "Live Station": Icons.roofing,
+    "Live Train": Icons.train,
+    "PNR Status": Icons.info,
+    "Search Train": Icons.search
+  };
+
   @override
   State<StatefulWidget> createState() =>  _HomeScreenState();
 }
@@ -87,13 +105,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(builder: (ctx) => builder(ctx, user))
                   );
                 },
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontFamily: 'mono'
-                  ))
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon((user.role == Role.admin)? HomeScreen.adminIcons[label]: HomeScreen.userIcons[label], size: 100, color: Colors.black,),
+                    const SizedBox(height: 16),
+                    Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontFamily: 'mono',
+                        color: Colors.grey[200]
+                      )),
+                  ],
+                )
               ),
             );
           },

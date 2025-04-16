@@ -8,6 +8,7 @@ pub struct RouteResponse {
     pub route_id: i64,
     pub route_name: String,
     pub source_station_id: i64,
+    pub source_station_name: String,
     pub num_stations: i64,
     pub total_distance: f32,
 }
@@ -28,6 +29,7 @@ pub struct AddIntermediateStation {
 pub struct RouteStation {
     pub route_id: i64,
     pub station_id: Option<i64>,
+    pub source_station_name: Option<String>,
     pub distance: Option<f32>, // Distance from source station
 }
 
@@ -36,7 +38,15 @@ pub struct RouteDetailResponse {
     pub route_id: i64,
     pub route_name: Option<String>,
     pub source_station_id: Option<i64>,
+    pub source_station_name: Option<String>,
     pub total_stations: usize,
     pub total_distance: f32,
     pub stations: Vec<RouteStation>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RelativeStation {
+    pub station_id: i64,
+    pub station_name: Option<String>,
+    pub distance_from_given_station: Option<f64>,
 }

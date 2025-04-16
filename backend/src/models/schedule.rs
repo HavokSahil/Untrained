@@ -1,34 +1,54 @@
-// models/schedule.rs
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
 
-use serde::{Serialize, Deserialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduleInstance {
-    pub station_abb: String,
-    pub toa: String,
-    pub tod: String,
-    pub index: i32,
-    pub dist_begin: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PassedInstance {
-    pub station_abb: String,
-    pub toa: Option<String>,
-    pub tod: Option<String>,
-    pub index: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Schedule {
-    pub id: i32,
-    pub train_no: String,
-    pub instances: Vec<ScheduleInstance>
+    pub sched_id: i64,
+    pub station_id: Option<i64>,
+    pub station_name: Option<String>,
+    pub sched_toa: Option<DateTime<Utc>>,
+    pub sched_tod: Option<DateTime<Utc>>,
+    pub journey_id: Option<i64>,
+    pub stop_number: Option<i32>,
+    pub route_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduleWithPassed {
-    pub id: i32,
-    pub train_no: String,
-    pub instances: Vec<PassedInstance>
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ScheduleJourney {
+    pub sched_id: i64,
+    pub station_id: Option<i64>,
+    pub station_name: Option<String>,
+    pub sched_toa: Option<DateTime<Utc>>,
+    pub sched_tod: Option<DateTime<Utc>>,
+    pub journey_id: Option<i64>,
+    pub stop_number: Option<i32>,
+    pub route_id: Option<i64>,
+    pub distance: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSchedule {
+    pub station_id: i64,
+    pub sched_toa: DateTime<Utc>,
+    pub sched_tod: DateTime<Utc>,
+    pub journey_id: i64,
+    pub stop_number: i32,
+    pub route_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSchedule {
+    pub sched_toa: Option<DateTime<Utc>>,
+    pub sched_tod: Option<DateTime<Utc>>,
+    pub stop_number: Option<i32>,
+    pub route_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct RoutesBetweenStations {
+    pub route_id: Option<i64>,
+    pub route_name: Option<String>,
+    pub source_station_id: Option<i64>,
+    pub destination_station_id: Option<i64>,
+    pub distance: Option<f64>,
 }

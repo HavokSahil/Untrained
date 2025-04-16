@@ -36,3 +36,9 @@ pub struct CreateSeat {
     pub coach_id: i64,
     pub seat_category: SeatCategory,
 }
+
+#[derive(serde::Serialize)]
+pub struct SeatCount {
+    pub reservation_category: Option<String>,
+    pub seat_count: Option<i64>,
+}

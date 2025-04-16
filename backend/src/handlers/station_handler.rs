@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse, Responder, Error};
-use sqlx::{mysql::MySqlArguments, Arguments, MySqlPool};
+use fake::Fake;
+use sqlx::{mysql::MySqlArguments, query, Arguments, MySqlPool};
 
 use crate::models::station::{CreateStation, StationResponse};
 
@@ -98,4 +99,50 @@ pub async fn get_all_stations(
             HttpResponse::InternalServerError().body("Failed to fetch stations")
         }
     }
+}
+
+pub async fn get_station_by_name(
+    pool: web::Data<MySqlPool>,
+    query: web::Query<QueryParams>,
+) -> Result<impl Responder, Error> {
+
+    let station_name = query.search.clone();
+    if station_name.is_none() {
+        return Ok(HttpResponse::BadRequest().body("Station name is required"));
+    }
+
+    let station_search = station_name.unwrap();
+    let station_name = format!("%{}%", station_search);
+
+    let res = sqlx::query_as!(
+        StationResponse,
+        r#"SELECT station_id, station_name, station_type FROM station
+        WHERE station_name LIKE ?"#,
+        station_name
+    )
+    .fetch_all(pool.get_ref())
+    .await;
+
+    match res {
+        Ok(stations) => {
+            if stations.is_empty() {
+                Ok(HttpResponse::NotFound().body("No station found"))
+            } else {
+                Ok(HttpResponse::Ok().json({
+                    serde_json::json!({
+                        "data": stations,
+                        "total": stations.len(),
+                        "page": 1,
+                        "offset": 0,
+                        "limit": stations.len()
+                    })
+                }))
+            }
+        }
+        Err(e) => {
+            eprintln!("Error fetching station: {:?}", e);
+            Ok(HttpResponse::InternalServerError().body("Failed to fetch station"))
+        }
+    }
+
 }

@@ -10,6 +10,7 @@ DROP PROCEDURE IF EXISTS get_stop_options_between_stations;
 DROP PROCEDURE IF EXISTS get_trains_between_stations_by_date;
 DROP PROCEDURE IF EXISTS get_all_trains_detailed;
 DROP PROCEDURE IF EXISTS get_trains_count;
+DROP PROCEDURE IF EXISTS insert_schedule_and_shift;
 
 -- This SQL script creates a stored procedure for getting available CNF seats for a given train and journey.
 CREATE PROCEDURE get_available_cnf_seats (
@@ -455,4 +456,26 @@ BEGIN
         (search_train_name IS NULL OR t.train_name LIKE CONCAT('%', search_train_name, '%'))
         AND (search_train_type IS NULL OR t.train_type = search_train_type)
         AND (search_train_id = 0 OR t.train_id = search_train_id);
+END;
+
+CREATE PROCEDURE insert_schedule_and_shift(
+  IN p_journey_id BIGINT,
+  IN p_station_id BIGINT,
+  IN p_sched_toa DATETIME,
+  IN p_sched_tod DATETIME,
+  IN p_stop_number INT,
+  IN p_route_id BIGINT
+)
+BEGIN
+  -- Shift existing stop_numbers
+  UPDATE schedule
+  SET stop_number = stop_number + 1
+  WHERE journey_id = p_journey_id AND stop_number >= p_stop_number;
+
+  -- Insert new schedule
+  INSERT INTO schedule (
+    journey_id, station_id, sched_toa, sched_tod, stop_number, route_id
+  ) VALUES (
+    p_journey_id, p_station_id, p_sched_toa, p_sched_tod, p_stop_number, p_route_id
+  );
 END;

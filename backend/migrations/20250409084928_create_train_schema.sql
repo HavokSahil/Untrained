@@ -97,7 +97,10 @@ CREATE TABLE schedule (
     sched_tod TIMESTAMP,
     journey_id BIGINT,
     stop_number INT,
-    route_id BIGINT
+    route_id BIGINT,
+
+    -- Pair of station and journey_id should be unique
+    UNIQUE (station_id, journey_id)
 );
 
 -- Running Table
@@ -125,11 +128,13 @@ CREATE TABLE booking (
     seat_id BIGINT
 );
 
+-- Reservation Status Table
 CREATE TABLE reservation_status (
     reservation_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     pnr BIGINT,  -- Passenger's PNR
     seat_id BIGINT,  -- Seat ID if assigned
     reservation_status ENUM('CNF', 'RAC', 'WL') DEFAULT 'WL',  -- Confirmed, RAC, Waiting List
+    reservation_category ENUM('SL', 'AC3', 'AC2', 'AC1', 'CC', 'FC', '2S'), -- Sleeper, AC 3 Tier, AC 2 Tier, AC 1 Tier, Chair Car, First Class, Second Sitting
     booking_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

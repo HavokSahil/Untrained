@@ -3,7 +3,9 @@ import 'package:frontend/data/models/user.dart';
 import 'package:frontend/data/models/journey.dart';
 import 'package:frontend/data/services/api_services.dart';
 import 'package:frontend/screens/admin/dialog/add_journey_dialog.dart';
+import 'package:frontend/screens/admin/journey_detail_screen.dart';
 import 'package:frontend/widgets/app_bar.dart';
+import 'package:intl/intl.dart';
 
 class JourneyScreen extends StatefulWidget {
   final User user;
@@ -45,8 +47,6 @@ class _JourneyScreenState extends State<JourneyScreen> {
       endStationName: (searchBy == SearchBy.EndStationName) ? searchQuery : null,
     );
 
-    debugPrint("Journeys: ${response.data}, error: ${response.error}");
-
     if (response.isSuccess && response.data != null) {
       final paginated = response.data!;
       setState(() {
@@ -65,6 +65,21 @@ class _JourneyScreenState extends State<JourneyScreen> {
       searchQuery = query.trim();
     });
     fetchJourneys();
+  }
+
+  String formatTime(String time) {
+    final dateTime = DateTime.parse(time);
+    return DateFormat('MMM dd, yyyy – h:mm a').format(dateTime);
+  }
+
+  void onJourneyClicked(JourneyDetails journey) {
+    // Navigate to JourneyDetailScreen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => JourneyDetailScreen(user: widget.user, journey: journey),
+      ),
+    );
   }
 
   @override
@@ -225,15 +240,15 @@ class _JourneyScreenState extends State<JourneyScreen> {
                           )),
                         ),
                         onPressed: () {
-                          // maybe navigate to JourneyDetailScreen
+                          onJourneyClicked(journey);
                         },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             SizedBox(width: 120, child: Text(journey.journeyId.toString())),
                             SizedBox(width: 160, child: Text(journey.trainId.toString().padLeft(6, '0'))),
-                            SizedBox(width: 200, child: Text(journey.startTime)),
-                            SizedBox(width: 200, child: Text(journey.endTime)),
+                            SizedBox(width: 200, child: Text(formatTime(journey.startTime))),
+                            SizedBox(width: 200, child: Text(formatTime(journey.endTime))),
                             SizedBox(width: 200, child: Text(journey.startStationName)),
                             SizedBox(width: 200, child: Text(journey.endStationName)),
                           ],
