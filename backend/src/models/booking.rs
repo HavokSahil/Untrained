@@ -39,3 +39,47 @@ pub struct Booking {
     pub txn_id: i64,
     pub sid: i64,
 }
+
+#[derive(Deserialize)]
+pub struct GroupBookingRequest {
+    pub group_size: i32,
+    pub passenger_data: serde_json::Value, // raw JSON array of passengers
+    pub journey_id: i64,
+    pub train_id: i64,
+    pub start_station_id: i64,
+    pub end_station_id: i64,
+    pub mode: String,
+    pub txn_id: i64,
+    pub email: String,
+    pub reservation_category: String, // e.g. "SL", "AC3", etc.
+}
+
+#[derive(Debug, Serialize)]
+pub struct BookingDetail {
+    pub pnr: i64,
+    pub pass_name: Option<String>,
+    pub age: Option<i32>,
+    pub sex: Option<String>,
+    pub disability: Option<i8>,
+    pub booking_id: Option<i64>,
+    pub booking_time: Option<chrono::DateTime<Utc>>,
+    pub booking_status: Option<String>,
+    pub amount: Option<f32>,
+    pub txn_id: Option<i64>,
+    pub payment_mode: Option<String>,
+    pub txn_status: Option<String>,
+    pub reservation_status: Option<String>,
+    pub reservation_category: Option<String>,
+    pub seat_no: Option<i64>,
+    pub seat_type: Option<String>,
+    pub seat_category: Option<String>,
+    pub coach_name: Option<String>,
+    pub coach_type: Option<String>,
+    pub train_name: Option<String>,
+    pub train_type: Option<String>,
+    pub journey_id: Option<i64>,
+    pub start_time: Option<chrono::DateTime<Utc>>,
+    pub end_time: Option<chrono::DateTime<Utc>>,
+    pub start_station: Option<String>,
+    pub end_station: Option<String>,
+}

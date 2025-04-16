@@ -71,3 +71,27 @@ class CreateJourneyRequest {
     };
   }
 }
+
+class CoachFare {
+  final String coachType;
+  final double fare;
+
+  CoachFare({
+    required this.coachType,
+    required this.fare,
+  });
+
+  factory CoachFare.fromJson(Map<String, dynamic> json) {
+    return CoachFare(
+      coachType: json['coach_type'] as String,
+      fare: (json['fare'] as num).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'coach_type': coachType,
+      'fare': fare,
+    };
+  }
+}

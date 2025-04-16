@@ -1,6 +1,6 @@
 use actix_web::{web, Error, HttpResponse, Responder, Result};
 use sqlx::MySqlPool;
-use crate::models::coach::{CoachResponse, CreateCoach};
+use crate::models::coach::{CoachPricesByType, CoachResponse, CreateCoach};
 
 use super::utils::QueryParams;
 
@@ -104,29 +104,34 @@ pub async fn create_coach(
 }
 
 // Fetch the fare for a specific coach
-pub async fn get_coach_price(
+pub async fn get_coach_prices(
     pool: web::Data<MySqlPool>,
-    coach_id: web::Path<i64>,
+    journey_id: web::Path<i64>,
 ) -> Result<impl Responder, Error> {
 
-    let coach_id = coach_id.into_inner();
+    let journey_id = journey_id.into_inner();
 
-    // Fetch the fare for the specified coach_id
-    let fare = sqlx::query_scalar!(
+    // Fetch the fare for the specified journey_id
+    let fare = sqlx::query_as!(
+        CoachPricesByType,
         r#"
-        SELECT fare 
-        FROM coach
-        WHERE coach_id = ?
+        SELECT DISTINCT
+            c.coach_type,
+            c.fare
+        FROM
+            coach c
+        JOIN
+            journey j ON c.train_id = j.train_id
+        WHERE
+            j.journey_id = ?;
         "#,
-        coach_id
+        journey_id
     )
-    .fetch_one(pool.get_ref())
+    .fetch_all(pool.get_ref())
     .await;
 
     match fare {
-        Ok(fare) => Ok(HttpResponse::Ok().json(serde_json::json!({
-            "fare": fare,
-        }))),
+        Ok(fare) => Ok(HttpResponse::Ok().json(serde_json::json!(fare))),
         Err(e) => {
             eprintln!("Error fetching fare: {:?}", e);
             Ok(HttpResponse::InternalServerError().json(serde_json::json!({

@@ -9,11 +9,15 @@ import 'package:intl/intl.dart';
 class BookingUserDetailsScreen extends StatefulWidget {
   final User user;
   final JourneyBetweenStations journey;
+  final String? category;
+  final double fare;
 
   const BookingUserDetailsScreen({
     super.key,
     required this.user,
     required this.journey,
+    required this.category,
+    required this.fare
   });
 
   @override
@@ -22,7 +26,7 @@ class BookingUserDetailsScreen extends StatefulWidget {
 
 class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
   final List<Map<String, dynamic>> passengers = [];
-
+  double totalFare = 0;
   @override
   void initState() {
     super.initState();
@@ -32,19 +36,37 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
   void _addPassenger() {
     if (passengers.length < 5) {
       setState(() {
-        passengers.add({
+        var ageController = TextEditingController();
+        ageController.text = '1';
+        final passenger = {
           'nameController': TextEditingController(),
-          'ageController': TextEditingController(),
+          'ageController': ageController,
           'gender': 'Male',
           'isDisabled': false,
-        });
+          'fare': widget.fare,
+        };
+        passengers.add(passenger);
       });
+      _calculateTotalFare();
+    }
+  }
+
+  void _calculateTotalFare() {
+    totalFare = 0;
+    for (var passenger in passengers) {
+      totalFare += passenger['fare'];
     }
   }
 
   void _updatePassenger(int index, String key, dynamic value) {
     setState(() {
       passengers[index][key] = value;
+      passengers[index]['fare'] = calculateFare(
+        age: int.tryParse(passengers[index]['ageController'].text) ?? 0,
+        sex: passengers[index]['gender'],
+        isDisabled: passengers[index]['isDisabled'],
+      );
+      _calculateTotalFare();
     });
   }
 
@@ -56,6 +78,7 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
     final ageText = passenger['ageController'].text.trim();
     final gender = passenger['gender'];
     final isDisabled = passenger['isDisabled'];
+    final fare = passenger['fare'];
 
     if (name.isEmpty || ageText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,6 +100,7 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
       age: age,
       gender: gender,
       isDisabled: isDisabled,
+      fare: fare,
     ));
   }
 
@@ -88,6 +112,8 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
         user: widget.user,
         journey: widget.journey,
         passengers: passengerData,
+        totalFare: totalFare,
+        category: widget.category,
       ),
     ),
   );
@@ -115,6 +141,9 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
           _infoRow("Journey Ends", formatTime(journey.endTime!)),
           _infoRow("Duration", journey.travelTime != null ? '${journey.travelTime! ~/ 60} min' : 'N/A'),
           _infoRow("Stops", '${journey.endStopNumber! - journey.startStopNumber!}'),
+          _infoRow("Class", widget.category ?? 'Unknown'),
+          _infoRow("Unreserved Fare", '₹${widget.fare.toStringAsFixed(2)}'),
+          _infoRow("Total Fare", '₹${totalFare.toStringAsFixed(2)}'),
         ],
       ),
     );
@@ -125,12 +154,44 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
     return DateFormat('MMM dd, yyyy – h:mm a').format(dateTime);
   }
 
+    // IF p_passenger_sex = 'F' THEN
+    //     -- Women get a 10% discount
+    //     SET p_individual_amount = p_base_amount * 0.9;
+    // ELSEIF p_passenger_disability = TRUE THEN
+    //     -- Disabled people get a 20% discount
+    //     SET p_individual_amount = p_base_amount * 0.8;
+    // ELSEIF p_passenger_age < 12 THEN
+    //     -- Children under 12 get a 50% discount
+    //     SET p_individual_amount = p_base_amount * 0.5;
+    // ELSEIF p_passenger_age >= 60 THEN
+    //     -- Senior citizens get a 30% discount
+    //     SET p_individual_amount = p_base_amount * 0.7;
+    // ELSE
+    //     -- Men or others pay full price
+    //     SET p_individual_amount = p_base_amount;
+
+  double calculateFare({int age = 0, required String sex, required bool isDisabled}) {
+    double fare = widget.fare;
+    if (age < 12) {
+      fare *= 0.5; // 50% discount for children under 12
+    } else if (age > 60) {
+      fare *= 0.7;  // 30% discount for senior citizens
+    }
+    if (sex == "Female") {
+      fare *= 0.9;  // 10% discount for women
+    }
+    if (isDisabled) {
+      fare *= 0.8; // 20% discount for disabled passengers
+    }
+    return fare;
+  }
+
   Widget _infoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          SizedBox(width: 100, child: Text("$label:", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+          SizedBox(width: 200, child: Text("$label:", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
           Expanded(child: Text(value, style: const TextStyle(color: Colors.white))),
         ],
       ),
@@ -169,6 +230,13 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
             child: TextField(
               controller: ageController,
               style: const TextStyle(color: Colors.white),
+              onChanged: (value) {
+                if (int.tryParse(value) == null) {
+                  ageController.text = '1';
+                } else {
+                  _updatePassenger(index, 'age', int.parse(value));
+                }
+              },
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 hintText: 'Age',
@@ -214,6 +282,13 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
             ],
           ),
           const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "₹ ${passenger['fare']}",
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            )
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.white),
             onPressed: () {
@@ -222,6 +297,7 @@ class _BookingUserDetailsScreenState extends State<BookingUserDetailsScreen> {
                   passenger['nameController'].dispose();
                   passenger['ageController'].dispose();
                   passengers.removeAt(index);
+                  _calculateTotalFare();
                 });
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(

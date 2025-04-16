@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:frontend/data/models/booking.dart';
 import 'package:frontend/data/models/coach.dart';
 import 'package:frontend/data/models/journey.dart';
+import 'package:frontend/data/models/passenger.dart';
 import 'package:frontend/data/models/route.dart';
 import 'package:frontend/data/models/schedule.dart';
 import 'package:frontend/data/models/seat.dart';
 import 'package:frontend/data/models/station.dart';
 import 'package:frontend/data/models/train.dart';
+import 'package:frontend/data/models/transaction.dart';
 import 'package:http/http.dart' as http;
 import '../models/user.dart';
 
@@ -919,6 +922,355 @@ class ApiService {
       } else {
         return ApiResponse(
           error: jsonDecode(response.body)['error'] ?? "Failed to fetch seat count",
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  static Future<ApiResponse<List<CoachFare>>> getCoachFare({
+    required int journeyId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/journeys/fare/$journeyId');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        final data = jsonList.map((e) => CoachFare.fromJson(e)).toList();
+        return ApiResponse(data: data, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? "Failed to fetch fare",
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+   static Future<ApiResponse<int>> createPaymentTransaction(CreateTransaction newTransaction) async {
+    try {
+      final uri = Uri.parse('$baseUrl/transaction/add');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(newTransaction.toJson()),
+      );
+
+      if (response.statusCode == 201) {
+        final jsonResponse = jsonDecode(response.body);
+
+        // Assuming the response body includes txn_id
+
+        final txnId = jsonResponse['txn_id'];
+
+        // Return the txnId if needed in your response or for further use
+        return ApiResponse(statusCode: 201, data: txnId);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to create transaction',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Update the payment transaction status by transaction ID
+  static Future<ApiResponse<void>> updatePaymentTransactionStatus(int txnId, String status) async {
+    try {
+      final uri = Uri.parse('$baseUrl/transaction/update');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "txn_id": txnId,
+          "txn_status": status,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return ApiResponse(statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to update transaction status',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get all transactions
+  static Future<ApiResponse<List<PaymentTransaction>>> getAllTransactions() async {
+    try {
+      final uri = Uri.parse('$baseUrl/transaction/all');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final transactions = jsonList.map((e) => PaymentTransaction.fromJson(e)).toList();
+        return ApiResponse(data: transactions, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch transactions',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  static Future<ApiResponse<int>> createGroupBooking(GroupBookingRequest request) async {
+    try {
+      final uri = Uri.parse('$baseUrl/booking/book');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(request.toJson()),
+      );
+
+      if (response.statusCode == 201) {
+        final json = jsonDecode(response.body);
+        final txnId = json['txn_id'];
+        return ApiResponse(data: txnId, statusCode: 201);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to create group booking',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  static Future<ApiResponse<List<BookingDetail>>> getBookingDetails(String email) async {
+    try {
+      final uri = Uri.parse('$baseUrl/booking/details?email=$email');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final bookings = jsonList.map((e) => BookingDetail.fromJson(e)).toList();
+        return ApiResponse(data: bookings, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch booking details',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  static Future<ApiResponse<void>> cancelBooking(CancelBookingRequest request) async {
+    try {
+      final uri = Uri.parse('$baseUrl/booking/cancel');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(request.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        return ApiResponse(statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to cancel booking',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  static Future<ApiResponse<PnrStatus>> getPnrStatus(int pnr) async {
+    try {
+      final uri = Uri.parse('$baseUrl/pnr/$pnr');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final pnrStatus = PnrStatus.fromJson(jsonDecode(response.body));
+        return ApiResponse(data: pnrStatus, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch PNR status',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+
+  // Get total number of journeys
+  static Future<ApiResponse<int>> getTotalNumberOfJourneys() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/total-journeys');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final totalJourneys = json['total_journeys'];
+        return ApiResponse(data: totalJourneys, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch total journeys',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get busiest route
+  static Future<ApiResponse<Map<String, dynamic>>> getBusiestRoute() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/busiest-route');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return ApiResponse(data: json, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch busiest route',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get total passengers traveling by journey
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getTotalPassengersTraveling() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/total-passengers');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final passengers = jsonList.map((e) => e as Map<String, dynamic>).toList();
+        return ApiResponse(data: passengers, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch passengers',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get gender distribution
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getGenderDistribution() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/gender-distribution');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final genderStats = jsonList.map((e) => e as Map<String, dynamic>).toList();
+        return ApiResponse(data: genderStats, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch gender distribution',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get busiest station
+  static Future<ApiResponse<Map<String, dynamic>>> getBusiestStation() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/busiest-station');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return ApiResponse(data: json, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch busiest station',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Rank running trains by bookings
+  static Future<ApiResponse<List<Map<String, dynamic>>>> rankRunningTrainsByBookings() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/rank-running-trains');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final trains = jsonList.map((e) => e as Map<String, dynamic>).toList();
+        return ApiResponse(data: trains, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch running trains',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get busiest time period
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getBusiestTimePeriod() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/busiest-time-period');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final timePeriods = jsonList.map((e) => e as Map<String, dynamic>).toList();
+        return ApiResponse(data: timePeriods, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch busiest time period',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      return ApiResponse(error: e.toString());
+    }
+  }
+
+  // Get reservation status distribution
+  static Future<ApiResponse<List<Map<String, dynamic>>>> getReservationStatusDistribution() async {
+    try {
+      final uri = Uri.parse('$baseUrl/stat/reservation-status-distribution');
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List;
+        final statusDistribution = jsonList.map((e) => e as Map<String, dynamic>).toList();
+        return ApiResponse(data: statusDistribution, statusCode: 200);
+      } else {
+        return ApiResponse(
+          error: jsonDecode(response.body)['error'] ?? 'Failed to fetch reservation status distribution',
           statusCode: response.statusCode,
         );
       }

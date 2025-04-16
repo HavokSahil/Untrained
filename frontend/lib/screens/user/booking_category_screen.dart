@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/data/models/schedule.dart';
 import 'package:frontend/data/models/user.dart';
 import 'package:frontend/data/services/api_services.dart';
+import 'package:frontend/screens/user/booking_user_details_screen.dart';
 import 'package:frontend/widgets/app_bar.dart';
 
 class BookingCategoryScreen extends StatefulWidget {
@@ -22,6 +23,8 @@ class _BookingCategoryScreenState extends State<BookingCategoryScreen> {
   Map<String, Map<String, Map<String, int>>> availableSeats = {};
   bool isLoading = true;
   String? error;
+
+  Map<String, double> category_fare = {};
 
   final types = ['cnf', 'rac', 'wl'];
   final typesLabel = {
@@ -45,6 +48,23 @@ class _BookingCategoryScreenState extends State<BookingCategoryScreen> {
   void initState() {
     super.initState();
     _loadSeatData();
+    _loadFare();
+  }
+
+  Future<void> _loadFare() async {
+    try {
+      final fareRes = await ApiService.getCoachFare(
+        journeyId: widget.journey.journeyId,
+      );
+
+      for (final category in fareRes.data ?? []) {
+        category_fare[category.coachType] = category.fare;
+      }
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+    }
   }
 
   Future<void> _loadSeatData() async {
@@ -96,26 +116,32 @@ class _BookingCategoryScreenState extends State<BookingCategoryScreen> {
   }
 
   void _onCategorySelected(String category) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Selected: ${categoryLabels[category]}')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingUserDetailsScreen(
+          user: widget.user,
+          journey: widget.journey,
+          category: category,
+          fare: category_fare[category] ?? 0,
+        ),
+      ),
     );
     // Navigation or selection logic can be added here
   }
-  
+
   // Helper function to get the available type based on seat counts
   String? _getAvailableType(String category) {
     final availableCNF = (availableSeats['cnf']?[category]?['total'] ?? 0) - (availableSeats['cnf']?[category]?['booked'] ?? 0);
     final availableRAC = (availableSeats['rac']?[category]?['total'] ?? 0) - (availableSeats['rac']?[category]?['booked'] ?? 0);
-    final availableWL = (availableSeats['wl']?[category]?['booked'] ?? 0);
 
     if (availableCNF > 0) {
       return 'cnf';
     } else if (availableRAC > 0) {
       return 'rac';
-    } else if (availableWL > 0) {
+    } else {
       return 'wl';
     }
-    return null; // No available seats
   }
 
   @override
@@ -123,88 +149,90 @@ class _BookingCategoryScreenState extends State<BookingCategoryScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBarWidget(user: widget.user, title: "Booking ~ Select Category"),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : error != null
-              ? Center(
-                  child: Text(
-                    "Error: $error",
-                    style: const TextStyle(color: Colors.redAccent),
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        // Show categories in a single horizontal row
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: categories.map((category) {
-                              final availableType = _getAvailableType(category);
-                              if (availableType == null) {
-                                return Container(); // Skip category if no available type
-                              }
-
-                              final label = categoryLabels[category]!;
-                              final typeLabel = typesLabel[availableType]!;
-                              final available = availableSeats[availableType]?[category]?['total'] ?? 0;
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.grey[900],
-                                    padding: const EdgeInsets.all(24),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+      body: Center(
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : error != null
+                ? Center(
+                    child: Text(
+                      "Error: $error",
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Show categories in a single horizontal row
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: categories.map((category) {
+                                final label = categoryLabels[category]!;
+                                final availableType = _getAvailableType(category);
+                                final total = (availableSeats[availableType]?[category]?['total'] ?? 0);
+                                final totalBooked = (availableSeats["cnf"]?[category]?['total'] ?? 0);
+                                final booked = (availableSeats[availableType]?[category]?['booked'] ?? 0);
+                                final available = (total == 0)? booked : total - booked;
+                                if (availableType == 'wl' && totalBooked == 0) {
+                                  return Container(); // Skip category if no available type
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey[900],
+                                      padding: const EdgeInsets.all(24),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onPressed: () => _onCategorySelected(category),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          label,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "${availableType!.toUpperCase()} $available",
+                                          style: TextStyle(
+                                            color: (availableType == 'cnf') 
+                                                ? Colors.green 
+                                                : (availableType == 'rac') 
+                                                  ? Colors.yellow 
+                                                  : Colors.red,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Show the price
+                                        Text(
+                                          "₹ ${category_fare[category] ?? 0}",
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  onPressed: () => _onCategorySelected(category),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        label,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "${availableType.toUpperCase()} $available",
-                                        style: TextStyle(
-                                          color: (availableType == 'cnf') 
-                                              ? Colors.green 
-                                              : (availableType == 'rac') 
-                                                ? Colors.yellow 
-                                                : Colors.red,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      // Show the price
-                                      Text(
-                                        "₹100",
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
+      ),
     );
   }
 }

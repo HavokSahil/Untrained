@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse, Responder, Error};
-use fake::Fake;
+
 use sqlx::{mysql::MySqlArguments, query, Arguments, MySqlPool};
 
 use crate::models::station::{CreateStation, StationResponse};

@@ -1,5 +1,5 @@
 use actix_web::web;
-use crate::handlers::{journey_handler::*, route_handler::get_routes_between_stations};
+use crate::handlers::{coach_handler::get_coach_prices, journey_handler::*};
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -11,5 +11,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route("/id/{journey_id}/delete", web::delete().to(delete_journey)) // DELETE /api/journeys/{journey_id}/delete
             .route("/train/id/{train_id}", web::get().to(get_journeys_by_train)) // GET /api/journeys/train/{train_id}
             .route("/search", web::get().to(get_journey_by_stations))
+            .route("/fare/{journey_id}", web::get().to(get_coach_prices)) // GET /api/journeys/coach/prices/{journey_id}
     );
 }

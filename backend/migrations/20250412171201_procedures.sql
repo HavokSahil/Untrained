@@ -11,27 +11,34 @@ DROP PROCEDURE IF EXISTS get_trains_between_stations_by_date;
 DROP PROCEDURE IF EXISTS get_all_trains_detailed;
 DROP PROCEDURE IF EXISTS get_trains_count;
 DROP PROCEDURE IF EXISTS insert_schedule_and_shift;
+DROP PROCEDURE IF EXISTS create_payment_transaction_proc;
 
 -- This SQL script creates a stored procedure for getting available CNF seats for a given train and journey.
 CREATE PROCEDURE get_available_cnf_seats (
     IN p_train_id BIGINT,
     IN p_journey_id BIGINT,
+    IN p_reservation_category VARCHAR(20),
     IN p_limit INT
 )
 BEGIN
     INSERT INTO temp_available_seats (seat_id, seat_category)
-    SELECT s.seat_id, 'CNF'
-    FROM seat s
-    JOIN coach c ON s.coach_id = c.coach_id
-    WHERE c.train_id = p_train_id
-      AND s.seat_category = 'CNF'
-      AND s.seat_id NOT IN (
-          SELECT b.seat_id
-          FROM booking b
-          WHERE b.journey_id = p_journey_id
+    SELECT 
+        s.seat_id, 
+        'CNF' AS seat_category
+    FROM 
+        seat s
+    JOIN 
+        coach c ON s.coach_id = c.coach_id
+    LEFT JOIN 
+        booking b ON s.seat_id = b.seat_id AND b.journey_id = p_journey_id 
             AND b.booking_status IN ('CONFIRMED', 'PENDING')
-      )
-    LIMIT p_limit;
+    WHERE 
+        c.train_id = p_train_id
+        AND c.coach_type = p_reservation_category
+        AND s.seat_category = 'CNF'
+        AND b.seat_id IS NULL  -- Means this seat is NOT already booked for this journey
+    LIMIT 
+        p_limit;
 END;
 
 
@@ -39,88 +46,49 @@ END;
 CREATE PROCEDURE get_available_rac_seats (
     IN p_train_id BIGINT,
     IN p_journey_id BIGINT,
+    IN p_reservation_category VARCHAR(20),
     IN p_limit INT
 )
 BEGIN
     INSERT INTO temp_available_seats (seat_id, seat_category)
-    SELECT s.seat_id, 'RAC'
-    FROM seat s
-    JOIN coach c ON s.coach_id = c.coach_id
-    WHERE c.train_id = p_train_id
-      AND s.seat_category = 'RAC'
-      AND s.seat_id NOT IN (
-          SELECT b.seat_id
-          FROM booking b
-          WHERE b.journey_id = p_journey_id
+    SELECT 
+        s.seat_id, 
+        'RAC' AS seat_category
+    FROM 
+        seat s
+    JOIN 
+        coach c ON s.coach_id = c.coach_id
+    LEFT JOIN 
+        booking b ON s.seat_id = b.seat_id AND b.journey_id = p_journey_id 
             AND b.booking_status IN ('CONFIRMED', 'PENDING')
-      )
-    LIMIT p_limit;
+    WHERE 
+        c.train_id = p_train_id
+        AND c.coach_type = p_reservation_category
+        AND s.seat_category = 'RAC'
+        AND b.seat_id IS NULL  -- Means this seat is NOT already booked for this journey
+    LIMIT 
+        p_limit;
 END;
 
-CREATE PROCEDURE calculate_individual_price(
-    IN p_passenger_sex CHAR(1),
-    IN p_passenger_disability BOOLEAN,
-    IN p_passenger_age INT,
-    IN p_base_amount FLOAT,
-    OUT p_individual_amount FLOAT
+CREATE PROCEDURE calculate_group_price (
+    IN p_group_size INT,
+    IN p_passenger_data JSON,
+    IN p_base_amount FLOAT,  -- Can be ignored if fare is in JSON
+    OUT p_total_price FLOAT
 )
 BEGIN
-    IF p_passenger_sex = 'F' THEN
-        -- Women get a 10% discount
-        SET p_individual_amount = p_base_amount * 0.9;
-    ELSEIF p_passenger_disability = TRUE THEN
-        -- Disabled people get a 20% discount
-        SET p_individual_amount = p_base_amount * 0.8;
-    ELSEIF p_passenger_age < 12 THEN
-        -- Children under 12 get a 50% discount
-        SET p_individual_amount = p_base_amount * 0.5;
-    ELSEIF p_passenger_age >= 60 THEN
-        -- Senior citizens get a 30% discount
-        SET p_individual_amount = p_base_amount * 0.7;
-    ELSE
-        -- Men or others pay full price
-        SET p_individual_amount = p_base_amount;
-    END IF;
-END;
+    DECLARE i INT DEFAULT 0;
+    DECLARE total FLOAT DEFAULT 0;
+    DECLARE fare FLOAT;
 
--- This SQL script creates a stored procedure for calculating the total price of a group booking.
-CREATE PROCEDURE calculate_group_price(
-    IN p_group_size INT,  -- Number of passengers in the group
-    IN p_passenger_data JSON,  -- A JSON array of passenger details (name, age, sex, disability)
-    IN p_base_amount FLOAT,  -- Base amount for a ticket (before any discount)
-    OUT p_total_price FLOAT  -- Output: total price of the group
-)
-BEGIN
-    DECLARE i INT;
-    DECLARE p_passenger_sex CHAR(1);
-    DECLARE p_passenger_disability BOOLEAN;
-    DECLARE p_passenger_age INT;
-    DECLARE p_individual_amount FLOAT;
-    DECLARE p_individual_price FLOAT;
-
-    SET i = 0;
-    SET p_individual_price = 0;
-    SET p_total_price = 0;
-
-    -- Loop through the group size and calculate price for each passenger
     WHILE i < p_group_size DO
-        -- Extract passenger data from JSON
-        SET p_passenger_sex = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].sex')));
-        SET p_passenger_disability = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].disability')));
-        SET p_passenger_age = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].age')));
-
-        -- Calculate individual price based on gender and disability
-        CALL calculate_individual_price(p_passenger_sex, p_passenger_disability, p_passenger_age, p_base_amount, p_individual_amount);
-
-        -- Add individual amount to the total price
-        SET p_total_price = p_total_price + p_individual_amount;
-
-        -- Increment loop counter
+        SET fare = CAST(JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].fare'))) AS DECIMAL(10, 2));
+        SET total = total + fare;
         SET i = i + 1;
     END WHILE;
 
+    SET p_total_price = total;
 END;
-
 
 -- This SQL script creates a stored procedure for creating a group booking.
 CREATE PROCEDURE create_group_booking(
@@ -130,13 +98,13 @@ CREATE PROCEDURE create_group_booking(
     IN p_train_id BIGINT,
     IN p_start_station_id BIGINT,
     IN p_end_station_id BIGINT,
-    IN p_base_amount FLOAT,
-    IN p_mode VARCHAR(20)
+    IN p_mode VARCHAR(20),
+    IN p_txn_id BIGINT,
+    IN p_email VARCHAR(255),
+    IN p_reservation_category ENUM('SL', 'AC3', 'AC2', 'AC1', 'CC', 'FC', '2S')
 )
 BEGIN
-    DECLARE p_txn_id BIGINT;
-    DECLARE p_total_price FLOAT;
-    DECLARE i INT;
+    DECLARE i INT DEFAULT 0;
     DECLARE p_pnr BIGINT;
     DECLARE p_passenger_name VARCHAR(100);
     DECLARE p_passenger_age INT;
@@ -146,56 +114,62 @@ BEGIN
     DECLARE p_individual_amount FLOAT;
     DECLARE p_seat_category ENUM('CNF', 'RAC');
     DECLARE temp_total_seats INT;
+    DECLARE p_total_price FLOAT DEFAULT 0;
 
-    SET i = 0;
-
-    -- Temp table for available seats
+    -- Drop if exists and create temporary table for available seats
+    DROP TEMPORARY TABLE IF EXISTS temp_available_seats;
     CREATE TEMPORARY TABLE temp_available_seats (
         seat_id BIGINT,
         seat_category ENUM('CNF', 'RAC')
     );
 
-    -- Fill CNF seats first
-    CALL get_available_cnf_seats(p_train_id, p_journey_id, p_group_size);
-
-    -- Add RAC seats if CNF not enough
+    -- Fetch CNF seats first
+    CALL get_available_cnf_seats(p_train_id, p_journey_id, p_reservation_category, p_group_size);
     SET temp_total_seats = (SELECT COUNT(*) FROM temp_available_seats);
 
+    -- DEBUG
+    SELECT temp_total_seats AS available_cnf_seats;
+
+    -- If not enough CNF, fetch RAC
     IF temp_total_seats < p_group_size THEN
-        CALL get_available_rac_seats(p_train_id, p_journey_id, (p_group_size - temp_total_seats));
+        CALL get_available_rac_seats(p_train_id, p_journey_id, p_reservation_category, (p_group_size - temp_total_seats));
     END IF;
 
-    -- Calculate group price
-    CALL calculate_group_price(p_group_size, p_passenger_data, p_base_amount, p_total_price);
-
-    -- Create payment transaction
-    INSERT INTO payment_transaction (total_amount, txn_status, payment_mode)
-    VALUES (p_total_price, 'PENDING', p_mode);
-    SET p_txn_id = LAST_INSERT_ID();
-
-    -- Booking loop
+    -- Process passengers one by one
     WHILE i < p_group_size DO
-        -- Extract passenger data
+        -- Extract passenger details from JSON
         SET p_passenger_name = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].name')));
         SET p_passenger_age = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].age')));
         SET p_passenger_sex = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].sex')));
         SET p_passenger_disability = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].disability')));
+        SET p_individual_amount = JSON_UNQUOTE(JSON_EXTRACT(p_passenger_data, CONCAT('$[', i, '].fare')));
 
-        -- Insert passenger
-        INSERT INTO passenger (pass_name, age, sex, disability)
-        VALUES (p_passenger_name, p_passenger_age, p_passenger_sex, p_passenger_disability);
+        -- Update total price
+        SET p_total_price = p_total_price + p_individual_amount;
+
+        -- Insert passenger and get pnr
+        INSERT INTO passenger (pass_name, age, sex, disability, email)
+        VALUES (p_passenger_name, p_passenger_age, p_passenger_sex, p_passenger_disability, p_email);
         SET p_pnr = LAST_INSERT_ID();
 
-        CALL calculate_individual_price(p_passenger_sex, p_passenger_disability, p_passenger_age, p_base_amount, p_individual_amount);
+        -- Default values
+        SET p_seat_id = NULL;
+        SET p_seat_category = NULL;
 
-        -- Assign seat if available
-        SELECT seat_id, seat_category
-        INTO p_seat_id, p_seat_category
-        FROM temp_available_seats
-        LIMIT 1;
+        -- Check for seat availability and assign
+        IF (SELECT COUNT(*) FROM temp_available_seats) > 0 THEN
+            SELECT seat_id, seat_category
+            INTO p_seat_id, p_seat_category
+            FROM temp_available_seats
+            LIMIT 1;
 
-        IF p_seat_id IS NOT NULL THEN
-            -- Insert booking with seat
+            -- Delete assigned seat
+            DELETE FROM temp_available_seats WHERE seat_id = p_seat_id;
+
+            -- DEBUG
+            SELECT p_seat_id AS assigned_seat_id, p_seat_category AS assigned_seat_category;
+
+            -- Booking with seat
             INSERT INTO booking (
                 booking_time, booking_status, pnr, journey_id, seat_id,
                 start_station_id, end_station_id, amount, txn_id
@@ -204,17 +178,16 @@ BEGIN
                 p_start_station_id, p_end_station_id, p_individual_amount, p_txn_id
             );
 
-            -- Insert reservation status
             INSERT INTO reservation_status (
-                pnr, seat_id, reservation_status, booking_time
+                pnr, seat_id, reservation_status, booking_time, reservation_category
             ) VALUES (
-                p_pnr, p_seat_id, p_seat_category, NOW()
+                p_pnr, p_seat_id, p_seat_category, NOW(), p_reservation_category
             );
-
-            -- Remove assigned seat
-            DELETE FROM temp_available_seats WHERE seat_id = p_seat_id;
         ELSE
-            -- No seats available, mark as waiting
+            -- DEBUG
+            SELECT NULL AS assigned_seat_id, 'WL' AS assigned_seat_category;
+
+            -- Booking as WL
             INSERT INTO booking (
                 booking_time, booking_status, pnr, journey_id, seat_id,
                 start_station_id, end_station_id, amount, txn_id
@@ -224,22 +197,18 @@ BEGIN
             );
 
             INSERT INTO reservation_status (
-                pnr, seat_id, reservation_status, booking_time
+                pnr, seat_id, reservation_status, booking_time, reservation_category
             ) VALUES (
-                p_pnr, NULL, 'WL', NOW()
+                p_pnr, NULL, 'WL', NOW(), p_reservation_category
             );
         END IF;
 
         SET i = i + 1;
     END WHILE;
 
-    -- Output
-    SELECT p_txn_id AS transaction_id;
-
     -- Clean up
     DROP TEMPORARY TABLE IF EXISTS temp_available_seats;
 END;
-
 
 -- This SQL script creates a stored procedure for updating the booking status.
 CREATE PROCEDURE update_booking_status(
@@ -478,4 +447,25 @@ BEGIN
   ) VALUES (
     p_journey_id, p_station_id, p_sched_toa, p_sched_tod, p_stop_number, p_route_id
   );
+END;
+
+CREATE PROCEDURE create_payment_transaction_proc(
+    IN p_total_amount FLOAT,
+    IN p_txn_status ENUM('PENDING', 'COMPLETE', 'FAILED'),
+    IN p_payment_mode ENUM('UPI', 'CARD', 'CASH', 'NETBANKING')
+)
+BEGIN
+    DECLARE new_txn_id BIGINT;
+
+    -- Insert the payment transaction
+    INSERT INTO payment_transaction (total_amount, txn_status, payment_mode)
+    VALUES (p_total_amount, p_txn_status, p_payment_mode);
+
+    -- Get the auto-incremented ID
+    SET new_txn_id = LAST_INSERT_ID();
+
+    -- Insert or update the txn_id in global_vars
+    INSERT INTO global_variables (var_name, var_value)
+    VALUES ('last_txn_id', new_txn_id)
+    ON DUPLICATE KEY UPDATE var_value = new_txn_id;
 END;

@@ -14,6 +14,8 @@ DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS station;
 DROP TABLE IF EXISTS train;
 
+DROP TABLE IF EXISTS global_variables;
+
 -- User Table
 CREATE TABLE users (
     email VARCHAR(255) PRIMARY KEY CHECK (email LIKE '%@%'),
@@ -153,6 +155,11 @@ CREATE TABLE cancellation_record (
     refund_amount FLOAT,
     cancel_status ENUM('PENDING', 'COMPLETED', 'FAILED'), -- Pending, Completed, Failed
     txn_id BIGINT
+);
+
+CREATE TABLE global_variables (
+    var_name VARCHAR(255) PRIMARY KEY,
+    var_value VARCHAR(255) NOT NULL
 );
 
 

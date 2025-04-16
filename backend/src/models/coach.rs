@@ -18,3 +18,9 @@ pub struct CoachResponse {
     pub train_id: Option<i64>,
     pub total_seats: Option<i64>
 }
+
+#[derive(Serialize, Deserialize, FromRow, Debug)]
+pub struct CoachPricesByType {
+    pub coach_type: Option<String>,
+    pub fare: Option<f32>,
+}

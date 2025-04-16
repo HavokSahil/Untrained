@@ -31,6 +31,8 @@ pub struct QueryParams {
 
     pub journey_date: Option<NaiveDate>,
 
+    pub email: Option<String>,
+
     pub page: Option<u32>,
     pub limit: Option<u32>
 }

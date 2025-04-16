@@ -1049,3 +1049,8 @@ INSERT INTO seat (seat_no, seat_type, coach_id, seat_category) VALUES
 (8, 'LL', 90, 'CNF'),
 (9, 'MD', 90, 'CNF'),
 (10, 'UP', 90, 'CNF');
+
+INSERT INTO users(email, name, password, role)
+VALUES 
+    ("admin@gmail.com", "Sahil Raj", "password", "ADMIN"),
+    ("user@gmail.com", "Sahil Raj", "password", "USER");

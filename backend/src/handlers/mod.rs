@@ -11,4 +11,5 @@ pub mod train_handler;
 pub mod transaction_handler;
 pub mod user_handler;
 pub mod auth_handler;
+pub mod stats_handler;
 mod utils;
